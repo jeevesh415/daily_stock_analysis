@@ -199,6 +199,8 @@ describe('PortfolioPage FX refresh', () => {
     refreshFx.mockResolvedValue({
       asOf: '2026-03-19',
       accountCount: 1,
+      refreshEnabled: true,
+      disabledReason: null,
       pairCount: 1,
       updatedCount: 1,
       staleCount: 0,
@@ -275,6 +277,8 @@ describe('PortfolioPage FX refresh', () => {
     refreshFx.mockResolvedValueOnce({
       asOf: '2026-03-19',
       accountCount: 1,
+      refreshEnabled: true,
+      disabledReason: null,
       pairCount: 0,
       updatedCount: 0,
       staleCount: 0,
@@ -289,6 +293,48 @@ describe('PortfolioPage FX refresh', () => {
 
     await waitFor(() => expect(refreshFx).toHaveBeenCalledWith({ accountId: undefined }));
     expect(await screen.findByText('当前范围无可刷新的汇率对。')).toBeInTheDocument();
+  });
+
+  it('shows disabled feedback when FX online refresh is disabled even without a disabled reason', async () => {
+    refreshFx.mockResolvedValueOnce({
+      asOf: '2026-03-19',
+      accountCount: 1,
+      refreshEnabled: false,
+      pairCount: 1,
+      updatedCount: 0,
+      staleCount: 0,
+      errorCount: 0,
+    });
+
+    render(<PortfolioPage />);
+
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
+
+    expect(await screen.findByText('汇率在线刷新已被禁用。')).toBeInTheDocument();
+  });
+
+  it('prefers disabled feedback over empty-pair feedback when refresh is disabled', async () => {
+    refreshFx.mockResolvedValueOnce({
+      asOf: '2026-03-19',
+      accountCount: 1,
+      refreshEnabled: false,
+      disabledReason: 'portfolio_fx_update_disabled',
+      pairCount: 0,
+      updatedCount: 0,
+      staleCount: 0,
+      errorCount: 0,
+    });
+
+    render(<PortfolioPage />);
+
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
+
+    expect(await screen.findByText('汇率在线刷新已被禁用。')).toBeInTheDocument();
+    expect(screen.queryByText('当前范围无可刷新的汇率对。')).not.toBeInTheDocument();
   });
 
   it('shows warning feedback when FX refresh still falls back to stale rates', async () => {
@@ -355,8 +401,8 @@ describe('PortfolioPage FX refresh', () => {
     const refreshButton = screen.getByRole('button', { name: '刷新汇率' });
     fireEvent.click(refreshButton);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('刷新失败');
-    expect(screen.getByRole('alert')).toHaveTextContent('汇率服务暂时不可用');
+    const fxAlertTitle = await screen.findByText('刷新失败');
+    expect(fxAlertTitle.closest('[role="alert"]')).toHaveTextContent('汇率服务暂时不可用');
     await waitFor(() => expect(screen.getByRole('button', { name: '刷新汇率' })).not.toBeDisabled());
   });
 
@@ -378,8 +424,8 @@ describe('PortfolioPage FX refresh', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('快照刷新失败');
-    expect(screen.getByRole('alert')).toHaveTextContent('无法加载最新持仓快照');
+    const fxAlertTitle = await screen.findByText('快照刷新失败');
+    expect(fxAlertTitle.closest('[role="alert"]')).toHaveTextContent('无法加载最新持仓快照');
     await waitFor(() => expect(screen.queryByText('汇率已刷新，共更新 1 对。')).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole('button', { name: '刷新汇率' })).not.toBeDisabled());
   });
